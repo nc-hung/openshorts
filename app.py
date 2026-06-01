@@ -318,7 +318,10 @@ async def process_endpoint(
     request: Request,
     file: Optional[UploadFile] = File(None),
     url: Optional[str] = Form(None),
-    acknowledged: Optional[str] = Form(None)
+    acknowledged: Optional[str] = Form(None),
+    language: Optional[str] = Form(None),
+    asr_provider: Optional[str] = Form(None),
+    asr_hotwords: Optional[str] = Form(None),
 ):
     api_key = request.headers.get("X-Gemini-Key")
     if not api_key:
@@ -332,6 +335,9 @@ async def process_endpoint(
         body = await request.json()
         url = body.get("url")
         ack_flag = bool(body.get("acknowledged"))
+        language = body.get("language")
+        asr_provider = body.get("asr_provider")
+        asr_hotwords = body.get("asr_hotwords")
 
     if not url and not file:
         raise HTTPException(status_code=400, detail="Must provide URL or File")
@@ -364,6 +370,14 @@ async def process_endpoint(
     cmd = ["python", "-u", "main.py"] # -u for unbuffered
     env = os.environ.copy()
     env["GEMINI_API_KEY"] = api_key # Override with key from request
+
+    # Pass ASR settings as env vars
+    if language:
+        env["ASR_LANGUAGE"] = language
+    if asr_provider:
+        env["ASR_PROVIDER"] = asr_provider
+    if asr_hotwords:
+        env["ASR_HOTWORDS"] = asr_hotwords
 
     if url:
         cmd.extend(["-u", url])

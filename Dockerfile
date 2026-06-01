@@ -14,7 +14,11 @@ COPY requirements.txt .
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 RUN pip install --upgrade pip
-RUN pip install --no-cache-dir -r requirements.txt
+# Install torch from official PyTorch CDN (much faster than PyPI)
+RUN pip install --no-cache-dir --timeout=300 \
+    torch==2.11.0 torchvision==0.26.0 \
+    --index-url https://download.pytorch.org/whl/cpu
+RUN pip install --no-cache-dir --timeout=300 -r requirements.txt
 
 # Final stage
 FROM python:3.11-slim

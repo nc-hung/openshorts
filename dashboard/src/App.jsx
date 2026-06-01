@@ -321,7 +321,7 @@ function App() {
   };
 
   const handleProcess = async (data) => {
-    if (!apiKey || !uploadPostKey) {
+    if (!apiKey) {
       setShowKeyModal(true);
       return;
     }
@@ -336,11 +336,20 @@ function App() {
 
       if (data.type === 'url') {
         headers['Content-Type'] = 'application/json';
-        body = JSON.stringify({ url: data.payload, acknowledged: !!data.acknowledged });
+        body = JSON.stringify({
+          url: data.payload,
+          acknowledged: !!data.acknowledged,
+          language: data.language || undefined,
+          asr_provider: data.asrProvider || undefined,
+          asr_hotwords: data.asrHotwords || undefined,
+        });
       } else {
         const formData = new FormData();
         formData.append('file', data.payload);
         formData.append('acknowledged', data.acknowledged ? 'true' : 'false');
+        if (data.language) formData.append('language', data.language);
+        if (data.asrProvider) formData.append('asr_provider', data.asrProvider);
+        if (data.asrHotwords) formData.append('asr_hotwords', data.asrHotwords);
         body = formData;
       }
 
@@ -503,36 +512,30 @@ function App() {
               />
             )}
 
-            {(!apiKey || !uploadPostKey) && (
+            {!apiKey && (
               <button
                 onClick={() => setActiveTab('settings')}
                 className="text-xs text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 px-3 py-1 rounded-full border border-amber-500/30 transition-colors flex items-center gap-1.5"
-                title="Click to configure your API keys"
+                title="Gemini API key needed to process videos"
               >
                 <AlertTriangle size={12} />
-                {!apiKey && !uploadPostKey
-                  ? 'Gemini & Upload-Post keys missing'
-                  : !apiKey
-                    ? 'Gemini API Key Missing'
-                    : 'Upload-Post API Key Missing'}
+                Gemini API Key Missing
               </button>
             )}
           </div>
         </header>
 
         {/* Persistent Missing Keys Banner — visible on every screen */}
-        {(!apiKey || !uploadPostKey) && activeTab !== 'settings' && (
+        {(!apiKey || (!uploadPostKey && apiKey)) && activeTab !== 'settings' && (
           <div className="mx-6 mt-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between gap-4 shrink-0 animate-[fadeIn_0.3s_ease-out]">
             <div className="flex items-center gap-3 text-sm text-amber-200">
               <KeyRound size={16} className="shrink-0 text-amber-400" />
               <div>
-                <span className="font-semibold">Required API keys missing.</span>{' '}
+                <span className="font-semibold">{!apiKey ? 'API key needed.' : 'Publishing setup.'}</span>{' '}
                 <span className="text-amber-200/80">
-                  {!apiKey && !uploadPostKey
-                    ? 'Set your Gemini and Upload-Post API keys to use OpenShorts.'
-                    : !apiKey
-                      ? 'Set your Gemini API key to use OpenShorts.'
-                      : 'Set your Upload-Post API key to use OpenShorts.'}
+                  {!apiKey
+                    ? 'Set your Gemini API key to process videos.'
+                    : 'Set your Upload-Post API key to publish to social platforms.'}
                 </span>
               </div>
             </div>
@@ -1011,14 +1014,16 @@ function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowKeyModal(false)}>
           <div className="bg-[#18181b] border border-white/10 rounded-2xl p-6 max-w-md w-full mx-4 space-y-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-white">
-              {!apiKey && !uploadPostKey
-                ? 'Required API Keys Missing'
-                : !apiKey
-                  ? 'Gemini API Key Required'
-                  : 'Upload-Post API Key Required'}
+              {!apiKey
+                ? 'Gemini API Key Required'
+                : 'Upload-Post API Key Required'}
             </h2>
             <p className="text-sm text-zinc-400">
-              OpenShorts needs both a <strong className="text-zinc-200">Gemini</strong> API key and an <strong className="text-zinc-200">Upload-Post</strong> API key. Both have free tiers.
+              {!apiKey ? (
+                <>A <strong className="text-zinc-200">Gemini</strong> API key is required to process videos. An <strong className="text-zinc-200">Upload-Post</strong> key is optional and only needed when publishing to social platforms.</>
+              ) : (
+                <>An <strong className="text-zinc-200">Upload-Post</strong> API key is needed to publish clips to TikTok, Instagram Reels, and YouTube Shorts. Processing videos only requires the Gemini key above.</>
+              )}
             </p>
 
             {/* Gemini block */}

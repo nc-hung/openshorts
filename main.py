@@ -29,7 +29,7 @@ load_dotenv()
 ASPECT_RATIO = 9 / 16
 
 GEMINI_PROMPT_TEMPLATE = """
-You are a senior short-form video editor. Read the ENTIRE transcript and word-level timestamps to choose the 3–15 MOST VIRAL moments for TikTok/IG Reels/YouTube Shorts. Each clip must be between 15 and 60 seconds long.
+You are a short-form video editor. Read the ENTIRE transcript and word-level timestamps to choose the 3–15 most engaging moments for TikTok/IG Reels/YouTube Shorts. Each clip must be between 15 and 60 seconds long.
 
 ⚠️ FFMPEG TIME CONTRACT — STRICT REQUIREMENTS:
 - Return timestamps in ABSOLUTE SECONDS from the start of the video (usable in: ffmpeg -ss <start> -to <end> -i <input> ...).
@@ -48,20 +48,25 @@ TRANSCRIPT_TEXT (raw):
 WORDS_JSON (array of {{w, s, e}} where s/e are seconds):
 {words_json}
 
-STRICT EXCLUSIONS:
+STRICT RULES:
+- Select clips from the ACTUAL FOOTAGE only. Do NOT invent characters, scenes, products, dialogue, or new scripts.
+- Choose clips that contain COMPLETE SPEECH SEGMENTS that are understandable when taken out of context.
+- Prefer segments with a natural hook (interesting statement, question, surprising fact) and a natural payoff.
 - No generic intros/outros or purely sponsorship segments unless they contain the hook.
 - No clips < 15 s or > 60 s.
+- The viral_hook_text, titles, and descriptions MUST be in the SAME LANGUAGE as the transcript. Use natural, native language.
+- Order clips by predicted performance (best to worst).
 
-OUTPUT — RETURN ONLY VALID JSON (no markdown, no comments). Order clips by predicted performance (best to worst). In the descriptions, ALWAYS include a CTA like "Follow me and comment X and I'll send you the workflow" (especially if discussing an n8n workflow):
+OUTPUT — RETURN ONLY VALID JSON (no markdown, no comments):
 {{
   "shorts": [
     {{
       "start": <number in seconds, e.g., 12.340>,
       "end": <number in seconds, e.g., 37.900>,
-      "video_description_for_tiktok": "<description for TikTok oriented to get views>",
-      "video_description_for_instagram": "<description for Instagram oriented to get views>",
-      "video_title_for_youtube_short": "<title for YouTube Short oriented to get views 100 chars max>",
-      "viral_hook_text": "<SHORT punchy text overlay (max 10 words). MUST BE IN THE SAME LANGUAGE AS THE VIDEO TRANSCRIPT. Examples: 'POV: You realized...', 'Did you know?', 'Stop doing this!'>"
+      "video_description_for_tiktok": "<description in transcript language>",
+      "video_description_for_instagram": "<description in transcript language>",
+      "video_title_for_youtube_short": "<title in transcript language, max 100 chars>",
+      "viral_hook_text": "<SHORT punchy text overlay in transcript language, max 10 words>"
     }}
   ]
 }}
@@ -748,48 +753,30 @@ def process_video_to_vertical(input_video, final_output_video):
     return True
 
 def transcribe_video(video_path):
-    print("🎙️  Transcribing video with Faster-Whisper (CPU Optimized)...")
-    from faster_whisper import WhisperModel
+    from transcription_service import TranscriptionService
     
-    # Run on CPU with INT8 quantization for speed
-    model = WhisperModel("base", device="cpu", compute_type="int8")
+    svc = TranscriptionService()
+    print("  Transcribing video...")
+    result = svc.transcribe(video_path)
     
-    segments, info = model.transcribe(video_path, word_timestamps=True)
+    lang = result.get("language", "unknown")
+    provider = result.get("provider", "local")
+    flags = result.get("quality_flags", [])
+    corrected = result.get("corrected_words", [])
     
-    print(f"   Detected language '{info.language}' with probability {info.language_probability:.2f}")
+    print(f"  Language: {lang}  |  Provider: {provider}")
+    if flags:
+        print(f"  Quality flags: {flags}")
+    if corrected:
+        print(f"  Corrected {len(corrected)} low-confidence words via Gemini")
     
-    # Convert to openai-whisper compatible format
-    transcript_segments = []
-    full_text = ""
+    for seg in result.get("segments", []):
+        print(f"  [{seg['start']:.2f}s -> {seg['end']:.2f}s] {seg['text']}")
     
-    for segment in segments:
-        # Print progress to keep user informed (and prevent timeouts feeling)
-        print(f"   [{segment.start:.2f}s -> {segment.end:.2f}s] {segment.text}")
-        
-        seg_dict = {
-            'text': segment.text,
-            'start': segment.start,
-            'end': segment.end,
-            'words': []
-        }
-        
-        if segment.words:
-            for word in segment.words:
-                seg_dict['words'].append({
-                    'word': word.word,
-                    'start': word.start,
-                    'end': word.end,
-                    'probability': word.probability
-                })
-        
-        transcript_segments.append(seg_dict)
-        full_text += segment.text + " "
-        
-    return {
-        'text': full_text.strip(),
-        'segments': transcript_segments,
-        'language': info.language
-    }
+    result.setdefault("language", lang)
+    result.setdefault("segments", [])
+    result.setdefault("text", "")
+    return result
 
 def get_viral_clips(transcript_result, video_duration):
     print("🤖  Analyzing with Gemini...")

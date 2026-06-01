@@ -1,44 +1,34 @@
 import os
 import subprocess
+from transcription_service import TranscriptionService
+
+
+_trans_service = None
+
+
+def _get_transcriber():
+    global _trans_service
+    if _trans_service is None:
+        _trans_service = TranscriptionService()
+    return _trans_service
 
 
 def transcribe_audio(video_path):
     """
-    Transcribe audio from a video file using faster-whisper.
+    Transcribe audio from a video file using TranscriptionService.
     Returns transcript in the same format as main.py for compatibility.
     """
-    from faster_whisper import WhisperModel
+    svc = _get_transcriber()
+    print(f"  Transcribing audio from: {video_path}")
+    result = svc.transcribe(video_path)
 
-    print(f"🎙️  Transcribing audio from: {video_path}")
+    lang = result.get("language", "unknown")
+    flags = result.get("quality_flags", [])
+    if flags:
+        print(f"  Quality flags: {flags}")
 
-    # Run on CPU with INT8 quantization for speed
-    model = WhisperModel("base", device="cpu", compute_type="int8")
-
-    segments, info = model.transcribe(video_path, word_timestamps=True)
-
-    transcript = {
-        "segments": [],
-        "language": info.language
-    }
-
-    for segment in segments:
-        seg_data = {
-            "start": segment.start,
-            "end": segment.end,
-            "text": segment.text,
-            "words": []
-        }
-        if segment.words:
-            for word in segment.words:
-                seg_data["words"].append({
-                    "word": word.word.strip(),
-                    "start": word.start,
-                    "end": word.end
-                })
-        transcript["segments"].append(seg_data)
-
-    print(f"✅ Transcription complete. Language: {info.language}")
-    return transcript
+    print(f"  Transcription complete. Language: {lang}, provider: {result.get('provider', 'local')}")
+    return result
 
 
 def generate_srt_from_video(video_path, output_path, max_chars=20, max_duration=2.0):
