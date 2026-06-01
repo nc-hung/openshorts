@@ -4,6 +4,13 @@ services:
     container_name: openshorts-backend
     ports:
       - "8000:8000"
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-}
+      ASR_PROVIDER: ${ASR_PROVIDER:-auto}
+      ASR_LANGUAGE: ${ASR_LANGUAGE:-vi}
+      ASR_LOCAL_MODEL: ${ASR_LOCAL_MODEL:-medium}
+      ASR_HOTWORDS: ${ASR_HOTWORDS:-}
     volumes:
       - .:/app
       - /app/__pycache__

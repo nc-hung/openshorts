@@ -26,6 +26,7 @@ output/
 
 # Secrets
 .env
+secrets/
 
 # Generated metadata
 *_metadata.json
@@ -39,4 +40,3 @@ output/
 .claude/
 skills/
 skills-lock.json
-

@@ -68,7 +68,7 @@ class TranscriptionService:
         return {
             "provider": os.environ.get("ASR_PROVIDER", "auto"),
             "language": os.environ.get("ASR_LANGUAGE", "vi"),
-            "local_model": os.environ.get("ASR_LOCAL_MODEL", "large-v3"),
+            "local_model": os.environ.get("ASR_LOCAL_MODEL", "medium"),
             "hotwords": os.environ.get("ASR_HOTWORDS", ""),
             "google_creds": os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", ""),
             "google_project": project,
@@ -82,10 +82,14 @@ class TranscriptionService:
     def _normalize_audio(video_path: str) -> str:
         fd, wav = tempfile.mkstemp(suffix=".wav")
         os.close(fd)
+        # Same simple DSP chain used by the VoiceLedger recorder:
+        # remove low rumble/high hiss, then compress volume peaks for ASR.
+        audio_filter = "highpass=f=100,lowpass=f=8000,acompressor=threshold=0.063:ratio=12:attack=3:release=250"
         subprocess.run(
             [
                 "ffmpeg", "-y",
                 "-i", video_path,
+                "-af", audio_filter,
                 "-vn", "-acodec", "pcm_s16le",
                 "-ar", "16000", "-ac", "1",
                 wav,
@@ -308,7 +312,7 @@ class TranscriptionService:
         if hw_list:
             adaptation = cs.SpeechAdaptation(
                 phrase_sets=[
-                    cs.AdaptationPhraseSet(
+                    cs.SpeechAdaptation.AdaptationPhraseSet(
                         inline_phrase_set=cs.PhraseSet(
                             phrases=[
                                 cs.PhraseSet.Phrase(value=hw, boost=15)
